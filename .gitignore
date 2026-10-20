@@ -1,0 +1,50 @@
+### Maven / Java ###
+target/
+build/
+out/
+*.class
+*.jar
+*.war
+*.ear
+pom.xml.versionsBackup
+pom.xml.releaseBackup
+release.properties
+dependency-reduced-pom.xml
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+hs_err_pid*.log
+replay_pid*.log
+
+### IDE ###
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.classpath
+.project
+.factorypath
+nbproject/private/
+
+### OS ###
+.DS_Store
+Thumbs.db
+*~
+.~lock.*#
+
+### Logs ###
+logs/
+*.log
+
+### Secrets / local environment - never commit credentials ###
+.env
+*.env
+!.env.example
+secrets/
+*.pem
+*.key
+*.p12
+*.jks
+credentials.json
+docker-compose.override.yml
