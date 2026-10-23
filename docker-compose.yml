@@ -1,0 +1,30 @@
+# First cut: bring up the calculator service on its own.
+name: calculator-stack
+
+services:
+  calculator:
+    image: ${DOCKER_IMAGE:-jayeshpandit/calculator-api}:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: calculator-api
+    environment:
+      SERVER_PORT: 8080
+      APP_NAME: calculator
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "8080:8080"
+    networks:
+      - calculator-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+
+networks:
+  calculator-net:
+    name: calculator-net
+    driver: bridge
