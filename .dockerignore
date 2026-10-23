@@ -1,0 +1,39 @@
+# Build output - the image builds the JAR itself inside stage 1
+target/
+*.jar
+*.war
+
+# VCS and CI metadata
+.git/
+.gitignore
+.github/
+Jenkinsfile
+
+# Docker / Compose assets (not needed inside the build context)
+Dockerfile
+.dockerignore
+docker-compose.yml
+docker-compose.override.yml
+nginx/
+
+# Docs and reports
+docs/
+*.md
+*.pdf
+screenshots/
+
+# IDE / editor / OS cruft
+.idea/
+.vscode/
+*.iml
+.settings/
+.classpath
+.project
+.DS_Store
+
+# Local environment and secrets - must never enter an image layer
+.env
+*.env
+!.env.example
+**/*.pem
+**/*.key
