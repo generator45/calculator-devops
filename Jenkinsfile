@@ -149,5 +149,48 @@ pipeline {
             // Keep the agent's disk from filling up with per-build image tags.
             sh "docker image rm -f ${IMAGE_REPO}:${IMAGE_TAG} || true"
         }
+        success {
+            emailext(
+                to: env.NOTIFY_EMAIL,
+                subject: "SUCCESS - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                mimeType: 'text/html',
+                attachLog: false,
+                body: """
+                    <h3>Build succeeded</h3>
+                    <ul>
+                      <li><b>Job</b>: ${env.JOB_NAME} #${env.BUILD_NUMBER}</li>
+                      <li><b>Commit</b>: ${env.GIT_SHORT} - ${env.GIT_MSG}</li>
+                      <li><b>Image</b>: ${IMAGE_REPO}:${IMAGE_TAG}</li>
+                      <li><b>Deployed at</b>: http://localhost:${PROXY_PORT}/api/v1/add?a=2&amp;b=3</li>
+                      <li><b>Console</b>: <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></li>
+                    </ul>
+                """
+            )
+        }
+        failure {
+            emailext(
+                to: env.NOTIFY_EMAIL,
+                subject: "FAILURE - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                mimeType: 'text/html',
+                attachLog: true,
+                compressLog: true,
+                body: """
+                    <h3>Build failed</h3>
+                    <ul>
+                      <li><b>Job</b>: ${env.JOB_NAME} #${env.BUILD_NUMBER}</li>
+                      <li><b>Commit</b>: ${env.GIT_SHORT} - ${env.GIT_MSG}</li>
+                      <li><b>Failed stage</b>: see the console log attached</li>
+                      <li><b>Console</b>: <a href="${env.BUILD_URL}console">${env.BUILD_URL}console</a></li>
+                    </ul>
+                """
+            )
+        }
+        unstable {
+            emailext(
+                to: env.NOTIFY_EMAIL,
+                subject: "UNSTABLE - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                body: "Tests failed in ${env.JOB_NAME} #${env.BUILD_NUMBER}: ${env.BUILD_URL}testReport/"
+            )
+        }
     }
 }
