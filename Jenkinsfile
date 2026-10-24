@@ -101,6 +101,47 @@ pipeline {
                 }
             }
         }
+
+        stage('Deploy') {
+            steps {
+                // Idempotent: `up -d` reconciles the running stack in place instead of
+                // tearing it down, so a re-run of the same build is a no-op.
+                withEnv(["DOCKER_IMAGE=${IMAGE_REPO}", "IMAGE_TAG=${IMAGE_TAG}"]) {
+                    sh '''
+                        set -eu
+                        docker compose pull --quiet calculator || true
+                        docker compose up -d --remove-orphans
+                        docker compose ps
+                    '''
+                }
+            }
+        }
+
+        stage('Verify Health') {
+            steps {
+                sh '''
+                    set -eu
+                    echo "Waiting for the stack to report healthy..."
+                    for attempt in $(seq 1 30); do
+                        if curl -fsS "http://localhost:${PROXY_PORT}/actuator/health" | grep -q '"status":"UP"'; then
+                            echo "Health check passed on attempt ${attempt}"
+                            curl -fsS "http://localhost:${PROXY_PORT}/api/v1/add?a=2&b=3"; echo
+                            curl -fsS "http://localhost:${PROXY_PORT}/api/v1/multiply?a=6&b=7"; echo
+                            # divide-by-zero must answer 400, not 500
+                            code=$(curl -s -o /dev/null -w '%{http_code}' \
+                                   "http://localhost:${PROXY_PORT}/api/v1/divide?a=1&b=0")
+                            test "$code" = "400" || { echo "expected 400, got $code"; exit 1; }
+                            echo "Smoke tests passed."
+                            exit 0
+                        fi
+                        sleep 5
+                    done
+                    echo "Deployment did not become healthy in time"
+                    docker compose logs --tail=100
+                    exit 1
+                '''
+            }
+        }
     }
 
     post {
