@@ -187,7 +187,7 @@ served 502s until the proxy was restarted by hand.
 | Build | `./mvnw clean package -DskipTests`; archives `target/calculator.jar` |
 | Test | `./mvnw test`; publishes JUnit XML and archives the JaCoCo HTML report; fails the build on any test failure |
 | Docker Build | builds the image tagged `${BUILD_NUMBER}` and `latest` |
-| Push | pushes both tags to Docker Hub via the `dockerhub-credentials` credential |
+| Push | pushes both tags to Docker Hub via the `dockerhub-creds` credential |
 | Deploy | `docker compose up -d --remove-orphans` (in-place reconcile, so re-runs are idempotent) |
 | Verify Health | polls `/actuator/health` for `UP`, then asserts add, multiply and every error path (400 ×4, 404, 405) through the proxy |
 
@@ -203,7 +203,7 @@ unstable) to the student's address.
 2. **Tools** (*Manage Jenkins → Tools*) — a JDK installation named `JDK21`. Maven is not
    needed: the pipeline uses the repo's `./mvnw` wrapper.
 3. **Credentials** (*Manage Jenkins → Credentials*) — Username/Password credential with ID
-   `dockerhub-credentials` holding a Docker Hub access token. Nothing is hard-coded; no
+   `dockerhub-creds` holding a Docker Hub access token. Nothing is hard-coded; no
    secret is committed.
 4. **Email** (*Manage Jenkins → System → Extended E-mail Notification*) — SMTP host
    `smtp.gmail.com`, port 465, SSL, with an app password stored as a Jenkins credential.

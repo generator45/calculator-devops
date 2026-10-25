@@ -3,9 +3,9 @@
 // Prerequisites on the Jenkins controller/agent:
 //   * Tools        : JDK named "JDK21" (Manage Jenkins > Tools). Maven comes from the
 //                    repo's ./mvnw wrapper, so no Jenkins Maven install is needed.
-//   * Plugins      : Pipeline, Git, GitHub, JUnit, JaCoCo, Docker Pipeline,
-//                    Email Extension, Timestamper
-//   * Credentials  : Username/Password credential with ID "dockerhub-credentials"
+//   * Plugins      : Pipeline, Git, GitHub, JUnit, Docker Pipeline, Email Extension,
+//                    Timestamper
+//   * Credentials  : Username/Password credential with ID "dockerhub-creds"
 //   * Trigger      : GitHub webhook -> http://<jenkins>/github-webhook/
 //                    (Poll SCM fallback is configured below)
 
@@ -21,7 +21,7 @@ pipeline {
         IMAGE_NAME      = 'calculator-api'
         IMAGE_REPO      = "${DOCKER_HUB_USER}/${IMAGE_NAME}"
         IMAGE_TAG       = "${env.BUILD_NUMBER}"
-        REGISTRY_CREDS  = 'dockerhub-credentials'
+        REGISTRY_CREDS  = 'dockerhub-creds'
         NOTIFY_EMAIL    = 'iiitbachelors@gmail.com'
         PROXY_PORT      = '8080'
     }
@@ -66,8 +66,8 @@ pipeline {
         stage('Test') {
             steps {
                 // A test failure fails this stage (and the build) straight away;
-                // the publishers in post{always} still run, so the JUnit report
-                // and coverage are available for the failed build too.
+                // the publisher in post{always} still runs, so the JUnit report
+                // is available for the failed build too.
                 sh './mvnw -B test'
             }
             post {

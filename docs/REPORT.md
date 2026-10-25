@@ -66,7 +66,7 @@ round-robins across the replicas and follows them across a redeploy, retrying th
 | 2 | **Build** | `./mvnw -B clean package -DskipTests`; archives `target/calculator.jar` with fingerprinting | Fails fast on compilation errors before the slower test stage |
 | 3 | **Test** | `./mvnw -B test`; `post{always}` publishes `target/surefire-reports/*.xml` via the `junit` step and archives the JaCoCo HTML report | A red test fails the build; reports are published even for failed builds |
 | 4 | **Docker Build** | `docker.build("${IMAGE_REPO}:${BUILD_NUMBER}", '--pull .')`, also tagged `latest` | Immutable, build-number-addressable images; `--pull` keeps base images fresh |
-| 5 | **Push** | `docker.withRegistry(..., 'dockerhub-credentials')` pushes both tags | Credentials come from the Jenkins store — never from the repository |
+| 5 | **Push** | `docker.withRegistry(..., 'dockerhub-creds')` pushes both tags | Credentials come from the Jenkins store — never from the repository |
 | 6 | **Deploy** | `docker compose pull` then `docker compose up -d --remove-orphans` | Compose reconciles the running stack in place, which is what makes re-runs idempotent |
 | 7 | **Verify Health** | polls `/actuator/health` up to 30× / 5 s, then asserts `add`/`multiply` and every error path through the proxy: four 400s, a 404 and a 405 | Deployment is only "green" if the new containers actually serve traffic correctly |
 | — | **post** | prunes dangling images older than a week, deliberately leaving the deployed tag alone; `emailext` sends HTML mail on success / failure (log attached) / unstable | Disk hygiene without stranding the running stack on a missing image |
