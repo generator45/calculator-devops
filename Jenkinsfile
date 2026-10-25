@@ -22,7 +22,7 @@ pipeline {
         IMAGE_REPO      = "${DOCKER_HUB_USER}/${IMAGE_NAME}"
         IMAGE_TAG       = "${env.BUILD_NUMBER}"
         REGISTRY_CREDS  = 'dockerhub-creds'
-        NOTIFY_EMAIL    = 'iiitbachelors@gmail.com'
+        NOTIFY_EMAIL    = 'jai4924p@gmail.com'
         PROXY_PORT      = '8080'
     }
 
