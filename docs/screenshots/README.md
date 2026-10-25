@@ -1,7 +1,10 @@
 # Screenshots
 
-Evidence required by the mini-project deliverables. Capture each of these from the
-working setup and commit them here before the Class 17 review.
+Evidence captured from build #4 (the first fully green run) on 30 Oct 2026.
+
+The trigger is Poll SCM rather than a webhook: Jenkins runs on localhost, which
+GitHub cannot reach, and the brief allows Poll SCM as an alternative. Screenshot 07
+is the polling log rather than a webhook delivery for that reason.
 
 | File | What it must show |
 |---|---|
@@ -11,6 +14,7 @@ working setup and commit them here before the Class 17 review.
 | `04-docker-ps.png` | `docker ps` with both `calculator` replicas and `calculator-proxy` as `(healthy)` |
 | `05-dockerhub-tags.png` | Docker Hub repository page showing the build-number tags |
 | `06-api-responses.png` | `curl` output for add/subtract/multiply/divide plus the 400 divide-by-zero body, the 404 on an unknown path and the 405 (with its `Allow` header) |
-| `07-github-webhook.png` | GitHub webhook delivery with a green tick |
+| `07-git-polling-log.png` | Git Polling Log showing automated SCM polling against the GitHub remote |
 
-Reproduce the API output with `./scripts/smoke-test.sh`.
+Screenshot 06 is the output of `./scripts/smoke-test.sh`, which can be re-run at any time
+against the live stack.

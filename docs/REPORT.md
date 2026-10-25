@@ -207,8 +207,8 @@ all `(healthy)`, with Nginx observed splitting requests across both replicas, an
 `up -d` confirmed to be a no-op. `./scripts/smoke-test.sh` → 12/12 checks pass against the live
 stack, covering every 400 path plus the 404 and 405 cases.
 
-**Evidence to be attached** (`docs/screenshots/`, checklist in that directory): a green
-Jenkins run with all seven stages, the build-status email, `docker ps` showing both replicas
-and the proxy as `healthy`, the Docker Hub tag list, and the GitHub webhook delivery. These
-depend on the Jenkins instance and the GitHub remote, and are captured as part of preparing
-the Class 17 demo.
+**Evidence attached** (`docs/screenshots/`): a green Jenkins run with all seven stages
+(build #4), the JUnit report showing 35 tests and 0 failures, the `SUCCESS` build email,
+`docker ps` with both replicas running `jayeshpandit/calculator-api:4` and all three
+containers healthy, the Docker Hub tag list, the smoke-test output covering every error
+path, and the Git polling log showing the automated trigger.
