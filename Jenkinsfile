@@ -92,8 +92,15 @@ pipeline {
         stage('Docker Build') {
             steps {
                 script {
-                    def image = docker.build("${IMAGE_REPO}:${IMAGE_TAG}", '--pull .')
-                    image.tag('latest')
+                    // Build inside an authenticated registry session. `--pull` fetches the
+                    // base images from Docker Hub on every build, and doing that
+                    // authenticated means the build does not depend on whatever ambient
+                    // credentials happen to sit on the agent, and is not subject to the
+                    // anonymous pull rate limit.
+                    docker.withRegistry('https://index.docker.io/v1/', env.REGISTRY_CREDS) {
+                        def image = docker.build("${IMAGE_REPO}:${IMAGE_TAG}", '--pull .')
+                        image.tag('latest')
+                    }
                 }
                 sh "docker image inspect ${IMAGE_REPO}:${IMAGE_TAG} --format '{{.Size}} bytes'"
             }
