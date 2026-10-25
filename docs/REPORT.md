@@ -3,7 +3,7 @@
 **CSE 816 — Software Production Engineering · Mini-Project Report**
 M.Tech (CSE), Term I, 2026-27 · Faculty: Prof. B. Thangaraju
 
-Repository: `https://github.com/jayeshpandit/calculator-devops`
+Repository: `https://github.com/generator45/calculator-devops`
 Docker Hub: `https://hub.docker.com/r/jayeshpandit/calculator-api`
 (Both names are reserved for this submission; the pipeline references them by
 `IMAGE_REPO`/`REGISTRY_CREDS` in the `Jenkinsfile`.)

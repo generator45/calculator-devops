@@ -22,7 +22,7 @@ FROM eclipse-temurin:21-jre-alpine AS runtime
 
 LABEL org.opencontainers.image.title="calculator-api" \
       org.opencontainers.image.description="Calculator REST API - CSE 816 SPE mini-project" \
-      org.opencontainers.image.source="https://github.com/jayeshpandit/calculator-devops" \
+      org.opencontainers.image.source="https://github.com/generator45/calculator-devops" \
       org.opencontainers.image.licenses="MIT"
 
 # BusyBox already provides the `wget -qO-` used by the HEALTHCHECK below, so the
