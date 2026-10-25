@@ -185,7 +185,7 @@ served 502s until the proxy was restarted by hand.
 |---|---|
 | Checkout | `checkout scm`; records the short SHA and commit subject |
 | Build | `./mvnw clean package -DskipTests`; archives `target/calculator.jar` |
-| Test | `./mvnw test`; publishes JUnit XML + JaCoCo coverage; fails the build on any test failure |
+| Test | `./mvnw test`; publishes JUnit XML and archives the JaCoCo HTML report; fails the build on any test failure |
 | Docker Build | builds the image tagged `${BUILD_NUMBER}` and `latest` |
 | Push | pushes both tags to Docker Hub via the `dockerhub-credentials` credential |
 | Deploy | `docker compose up -d --remove-orphans` (in-place reconcile, so re-runs are idempotent) |
@@ -197,8 +197,9 @@ unstable) to the student's address.
 
 ### Jenkins setup
 
-1. **Plugins** — Pipeline, Git, GitHub, JUnit, JaCoCo, Docker Pipeline, Email Extension,
-   Timestamper (required by `options { timestamps() }`).
+1. **Plugins** — Pipeline, Git, GitHub, JUnit, Docker Pipeline, Email Extension,
+   Timestamper (required by `options { timestamps() }`). No coverage plugin is needed:
+   JaCoCo runs as a Maven plugin and its HTML report is archived as a build artifact.
 2. **Tools** (*Manage Jenkins → Tools*) — a JDK installation named `JDK21`. Maven is not
    needed: the pipeline uses the repo's `./mvnw` wrapper.
 3. **Credentials** (*Manage Jenkins → Credentials*) — Username/Password credential with ID

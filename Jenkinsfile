@@ -77,9 +77,14 @@ pipeline {
                     junit testResults: 'target/surefire-reports/*.xml',
                           allowEmptyResults: true,
                           skipPublishingChecks: true
-                    jacoco execPattern: 'target/jacoco.exec',
-                           classPattern: 'target/classes',
-                           sourcePattern: 'src/main/java'
+                    // Coverage is produced by the JaCoCo Maven plugin into
+                    // target/site/jacoco and archived as a build artifact. It is
+                    // deliberately not published through the Jenkins JaCoCo plugin:
+                    // that plugin is deprecated, and the brief only requires JUnit
+                    // results to be published here.
+                    archiveArtifacts artifacts: 'target/site/jacoco/**',
+                                     allowEmptyArchive: true,
+                                     fingerprint: false
                 }
             }
         }
