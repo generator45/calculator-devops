@@ -100,7 +100,9 @@ the Maven wrapper (`./mvnw`), so no local Maven install is required.
 java -jar target/calculator.jar
 ```
 
-Substitute `mvn` for `./mvnw` if you prefer a local Maven 3.9+ install.
+Substitute `mvn` for `./mvnw` if you prefer a local Maven 3.9+ install. Note that the wrapper
+downloads Maven 3.9.12 into `~/.m2/wrapper` on first use, so the very first build on a fresh
+(or offline) machine needs network access to `repo.maven.apache.org`.
 
 Coverage (JaCoCo) is written to `target/site/jacoco/index.html`.
 

@@ -197,10 +197,10 @@ and smoke-test gate, and an email with the result. The project also forms the ba
 end-of-semester Capstone, which will extend it with Ansible, Kubernetes and
 Prometheus/Grafana.
 
-**Verified locally.** `./mvnw clean test` → 35 tests, 0 failures. `docker build` → a 232 MB
+**Verified locally.** `./mvnw clean test` → 35 tests, 0 failures. `docker build` → a ~230 MB
 runtime image running as uid 10001. `docker compose up -d` → two API replicas and the proxy
 all `(healthy)`, with Nginx observed splitting requests across both replicas, and a second
-`up -d` confirmed to be a no-op. `./scripts/smoke-test.sh` → 14/14 checks pass against the live
+`up -d` confirmed to be a no-op. `./scripts/smoke-test.sh` → 12/12 checks pass against the live
 stack, covering every 400 path plus the 404 and 405 cases.
 
 **Evidence to be attached** (`docs/screenshots/`, checklist in that directory): a green
