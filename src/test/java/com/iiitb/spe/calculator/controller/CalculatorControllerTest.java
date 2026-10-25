@@ -115,7 +115,10 @@ class CalculatorControllerTest {
                         .post("/api/v1/add").param("a", "2").param("b", "3"))
                 .andExpect(status().isMethodNotAllowed())
                 .andExpect(jsonPath("$.status").value(405))
-                .andExpect(jsonPath("$.error").value("Method Not Allowed"));
+                .andExpect(jsonPath("$.error").value("Method Not Allowed"))
+                // RFC 9110 §15.5.6: a 405 must advertise what is allowed.
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .header().string("Allow", "GET"));
     }
 
     @Test
