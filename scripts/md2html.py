@@ -9,27 +9,27 @@ import re
 import sys
 
 CSS = """
-@page { size: A4; margin: 13mm 14mm; }
-body { font-family: "Liberation Serif", Georgia, serif; font-size: 9.2pt;
-       line-height: 1.28; color: #111; }
-h1 { font-family: "Liberation Sans", Arial, sans-serif; font-size: 16pt;
+@page { margin: 13mm 14mm; }
+body { font-family: "Liberation Serif", Georgia, serif; font-size: 8.75pt;
+       line-height: 1.24; color: #111; }
+h1 { font-family: "Liberation Sans", Arial, sans-serif; font-size: 14.5pt;
      margin: 0 0 2pt; line-height: 1.2; }
-h2 { font-family: "Liberation Sans", Arial, sans-serif; font-size: 10.8pt;
-     margin: 8pt 0 2.5pt; padding-bottom: 1.5pt; border-bottom: 0.6pt solid #bbb; }
+h2 { font-family: "Liberation Sans", Arial, sans-serif; font-size: 10.2pt;
+     margin: 7pt 0 2pt; padding-bottom: 1.5pt; border-bottom: 0.6pt solid #bbb; }
 h3 { font-family: "Liberation Sans", Arial, sans-serif; font-size: 10pt; margin: 8pt 0 2pt; }
-p { margin: 0 0 4pt; text-align: justify; }
+p { margin: 0 0 3.4pt; text-align: justify; }
 p.hdr { text-align: left; margin-bottom: 2.5pt; }
 .subtitle { font-size: 9.5pt; color: #333; margin-bottom: 1pt; }
 .meta { font-family: "Liberation Mono", monospace; font-size: 8.2pt; color: #444;
         margin-bottom: 8pt; }
-code { font-family: "DejaVu Sans Mono", monospace; font-size: 8.1pt; }
-pre { font-family: "DejaVu Sans Mono", "Noto Sans Mono", monospace; font-size: 5.9pt;
-      line-height: 1.12; background: #f6f6f6; border: 0.5pt solid #ddd;
+code { font-family: "DejaVu Sans Mono", monospace; font-size: 7.7pt; }
+pre { font-family: "DejaVu Sans Mono", "Noto Sans Mono", monospace; font-size: 5.5pt;
+      line-height: 1.1; background: #f6f6f6; border: 0.5pt solid #ddd;
       padding: 4pt 5pt; margin: 4pt 0 6pt; white-space: pre; }
-table { border-collapse: collapse; width: 100%; margin: 2.5pt 0 5.5pt; font-size: 8.1pt; }
-th, td { border: 0.5pt solid #bbb; padding: 2.4pt 4pt; text-align: left;
+table { border-collapse: collapse; width: 100%; margin: 2pt 0 4.5pt; font-size: 7.7pt; }
+th, td { border: 0.5pt solid #bbb; padding: 1.9pt 3.4pt; text-align: left;
          vertical-align: top; }
-th { background: #eee; font-family: "Liberation Sans", Arial, sans-serif; font-size: 8.3pt; }
+th { background: #eee; font-family: "Liberation Sans", Arial, sans-serif; font-size: 7.9pt; }
 ul { margin: 0 0 5pt; padding-left: 15pt; }
 li { margin-bottom: 1.5pt; }
 hr { border: none; border-top: 0.6pt solid #ccc; margin: 7pt 0; }

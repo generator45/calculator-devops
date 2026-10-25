@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Regenerate docs/REPORT.pdf from docs/REPORT.md.
-# Requires LibreOffice (soffice) for the HTML -> PDF step.
+# Requires LibreOffice (soffice) for the HTML -> PDF step; pdfinfo (poppler-utils)
+# is optional and only used to report the resulting page count.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."

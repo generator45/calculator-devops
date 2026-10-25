@@ -132,11 +132,9 @@ IMAGE_TAG=latest docker compose up -d
 
 | Suite | File | Covers |
 |---|---|---|
-| Unit (JUnit 5, parameterized) | `src/test/java/.../service/CalculatorServiceTest.java` | all four operations, divide-by-zero, `0/0` |
-| Spring MVC integration (MockMvc) | `src/test/java/.../controller/CalculatorControllerTest.java` | every endpoint, 400 paths, actuator health |
+| Unit (JUnit 5, parameterized) | `src/test/java/.../service/CalculatorServiceTest.java` | all four operations, divide-by-zero, `0/0`, non-finite operands, overflowing results |
+| Spring MVC integration (MockMvc) | `src/test/java/.../controller/CalculatorControllerTest.java` | every endpoint, actuator health, and every error path: 400 (divide-by-zero, missing, non-numeric, non-finite, overflow), 404, 405 |
 | Context | `src/test/java/.../CalculatorApplicationTests.java` | application context wiring |
-
-| Error handling | same MockMvc suite | 400 (divide-by-zero, missing, non-numeric, non-finite, overflow), 404, 405 |
 
 35 tests, all green. Surefire emits JUnit XML that the Jenkins `junit` publisher consumes;
 a failing test fails the pipeline.
@@ -184,21 +182,23 @@ served 502s until the proxy was restarted by hand.
 | Stage | What it does |
 |---|---|
 | Checkout | `checkout scm`; records the short SHA and commit subject |
-| Build | `mvn clean package -DskipTests`; archives `target/calculator.jar` |
-| Test | `mvn test`; publishes JUnit XML + JaCoCo coverage; fails the build on any test failure |
+| Build | `./mvnw clean package -DskipTests`; archives `target/calculator.jar` |
+| Test | `./mvnw test`; publishes JUnit XML + JaCoCo coverage; fails the build on any test failure |
 | Docker Build | builds the image tagged `${BUILD_NUMBER}` and `latest` |
 | Push | pushes both tags to Docker Hub via the `dockerhub-credentials` credential |
 | Deploy | `docker compose up -d --remove-orphans` (in-place reconcile, so re-runs are idempotent) |
-| Verify Health | polls `/actuator/health` for `UP`, then smoke-tests add, multiply and the 400 path |
+| Verify Health | polls `/actuator/health` for `UP`, then asserts add, multiply and every error path (400 ×4, 404, 405) through the proxy |
 
-`post` blocks remove the per-build image tag and send HTML email (success / failure with the
-log attached / unstable) to the student's address.
+`post` blocks prune dangling images older than a week — the tag the running stack is pinned to
+is deliberately left alone — and send HTML email (success / failure with the log attached /
+unstable) to the student's address.
 
 ### Jenkins setup
 
 1. **Plugins** — Pipeline, Git, GitHub, JUnit, JaCoCo, Docker Pipeline, Email Extension,
    Timestamper (required by `options { timestamps() }`).
-2. **Tools** (*Manage Jenkins → Tools*) — Maven installation named `Maven3`, JDK named `JDK21`.
+2. **Tools** (*Manage Jenkins → Tools*) — a JDK installation named `JDK21`. Maven is not
+   needed: the pipeline uses the repo's `./mvnw` wrapper.
 3. **Credentials** (*Manage Jenkins → Credentials*) — Username/Password credential with ID
    `dockerhub-credentials` holding a Docker Hub access token. Nothing is hard-coded; no
    secret is committed.
@@ -219,7 +219,8 @@ calculator-devops/
 │   ├── controller/CalculatorController.java
 │   ├── service/CalculatorService.java
 │   ├── model/{CalculationResponse,ErrorResponse}.java
-│   └── exception/{DivisionByZeroException,GlobalExceptionHandler}.java
+│   └── exception/{DivisionByZeroException,NonFiniteValueException,
+│                  GlobalExceptionHandler}.java
 ├── src/main/resources/application.yml
 ├── src/test/java/com/iiitb/spe/calculator/...   # JUnit 5 + MockMvc
 ├── pom.xml                                      # Maven build, Surefire, JaCoCo

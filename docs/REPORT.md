@@ -51,9 +51,10 @@ deployment.
 ```
 
 **Runtime topology.** Two API replicas join a user-defined bridge network and publish no host
-ports; all traffic enters through an Nginx reverse proxy on host port 8080. Docker's embedded
-DNS resolves the service name to both replica IPs, so Nginx round-robins between them and
-retries the sibling on `502/503/504`. Each replica carries a health check that greps
+ports; all traffic enters through an Nginx reverse proxy on host port 8080. The proxy resolves
+the service name against Docker's embedded DNS on every request (see challenge 7), so it both
+round-robins across the replicas and follows them across a redeploy, retrying the sibling on
+`502/503/504`. Each replica carries a health check that greps
 `"status":"UP"` out of `/actuator/health`, and the proxy only starts once the API reports
 `service_healthy`.
 
@@ -62,13 +63,13 @@ retries the sibling on `502/503/504`. Each replica carries a health check that g
 | # | Stage | Implementation | Why it matters |
 |---|---|---|---|
 | 1 | **Checkout** | `checkout scm`; captures short SHA and commit subject into the build environment | Every artefact and notification is traceable to one commit |
-| 2 | **Build** | `mvn -B clean package -DskipTests`; archives `target/calculator.jar` with fingerprinting | Fails fast on compilation errors before the slower test stage |
-| 3 | **Test** | `mvn -B test`; `post{always}` publishes `target/surefire-reports/*.xml` via the `junit` step and `jacoco.exec` via the JaCoCo plugin | A red test fails the build; reports are published even for failed builds |
+| 2 | **Build** | `./mvnw -B clean package -DskipTests`; archives `target/calculator.jar` with fingerprinting | Fails fast on compilation errors before the slower test stage |
+| 3 | **Test** | `./mvnw -B test`; `post{always}` publishes `target/surefire-reports/*.xml` via the `junit` step and `jacoco.exec` via the JaCoCo plugin | A red test fails the build; reports are published even for failed builds |
 | 4 | **Docker Build** | `docker.build("${IMAGE_REPO}:${BUILD_NUMBER}", '--pull .')`, also tagged `latest` | Immutable, build-number-addressable images; `--pull` keeps base images fresh |
 | 5 | **Push** | `docker.withRegistry(..., 'dockerhub-credentials')` pushes both tags | Credentials come from the Jenkins store — never from the repository |
 | 6 | **Deploy** | `docker compose pull` then `docker compose up -d --remove-orphans` | Compose reconciles the running stack in place, which is what makes re-runs idempotent |
-| 7 | **Verify Health** | polls `/actuator/health` up to 30× / 5 s, then smoke-tests `add`, `multiply`, and asserts the divide-by-zero path returns **400** | Deployment is only "green" if the new containers actually serve traffic correctly |
-| — | **post** | removes the per-build image tag; `emailext` sends HTML mail on success / failure (log attached) / unstable | Disk hygiene on the agent plus immediate feedback to the developer |
+| 7 | **Verify Health** | polls `/actuator/health` up to 30× / 5 s, then asserts `add`/`multiply` and every error path through the proxy: four 400s, a 404 and a 405 | Deployment is only "green" if the new containers actually serve traffic correctly |
+| — | **post** | prunes dangling images older than a week, deliberately leaving the deployed tag alone; `emailext` sends HTML mail on success / failure (log attached) / unstable | Disk hygiene without stranding the running stack on a missing image |
 
 `options` adds `timestamps()`, a 30-minute timeout, log rotation (15 builds), and
 `disableConcurrentBuilds()` — the last matters because every build deploys to the same host,
@@ -92,8 +93,10 @@ record (`{"operation","a","b","result"}`). Every failure mode is funnelled throu
 | anything unexpected | 500 | `Internal Server Error` |
 
 This matters for the pipeline, not just for tidiness: the Verify stage asserts that
-`divide?a=1&b=0` answers 400, so a regression that lets `b=0` return `Infinity` (the Java
-default for double division) breaks the deployment gate rather than reaching users.
+`divide?a=1&b=0` answers 400 — and likewise that an unknown path is 404 and a wrong method
+405 — so a regression that lets `b=0` return `Infinity` (the Java default for double division),
+or that collapses routing errors into 500s, breaks the deployment gate rather than reaching
+users.
 
 Tests: **35 total, all passing.** Parameterized JUnit 5 cases cover all four operations plus
 the `x/0` and `0/0` rejections and the non-finite guards; a `@SpringBootTest` + `MockMvc`
@@ -194,11 +197,11 @@ and smoke-test gate, and an email with the result. The project also forms the ba
 end-of-semester Capstone, which will extend it with Ansible, Kubernetes and
 Prometheus/Grafana.
 
-**Verified locally.** `mvn clean test` → 35 tests, 0 failures. `docker build` → a 233 MB
+**Verified locally.** `./mvnw clean test` → 35 tests, 0 failures. `docker build` → a 232 MB
 runtime image running as uid 10001. `docker compose up -d` → two API replicas and the proxy
 all `(healthy)`, with Nginx observed splitting requests across both replicas, and a second
-`up -d` confirmed to be a no-op. `./scripts/smoke-test.sh` → 9/9 checks pass against the live
-stack, including all three HTTP 400 paths.
+`up -d` confirmed to be a no-op. `./scripts/smoke-test.sh` → 14/14 checks pass against the live
+stack, covering every 400 path plus the 404 and 405 cases.
 
 **Evidence to be attached** (`docs/screenshots/`, checklist in that directory): a green
 Jenkins run with all seven stages, the build-status email, `docker ps` showing both replicas
