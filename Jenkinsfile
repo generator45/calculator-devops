@@ -2,7 +2,8 @@
 //
 // Prerequisites on the Jenkins controller/agent:
 //   * Tools        : Maven named "Maven3", JDK named "JDK21" (Manage Jenkins > Tools)
-//   * Plugins      : Pipeline, Git, JUnit, JaCoCo, Docker Pipeline, Email Extension
+//   * Plugins      : Pipeline, Git, GitHub, JUnit, JaCoCo, Docker Pipeline,
+//                    Email Extension, Timestamper
 //   * Credentials  : Username/Password credential with ID "dockerhub-credentials"
 //   * Trigger      : GitHub webhook -> http://<jenkins>/github-webhook/
 //                    (Poll SCM fallback is configured below)
@@ -20,7 +21,6 @@ pipeline {
         IMAGE_NAME      = 'calculator-api'
         IMAGE_REPO      = "${DOCKER_HUB_USER}/${IMAGE_NAME}"
         IMAGE_TAG       = "${env.BUILD_NUMBER}"
-        DOCKER_IMAGE    = "${IMAGE_REPO}:${IMAGE_TAG}"
         REGISTRY_CREDS  = 'dockerhub-credentials'
         NOTIFY_EMAIL    = 'iiitbachelors@gmail.com'
         PROXY_PORT      = '8080'
@@ -72,7 +72,10 @@ pipeline {
             }
             post {
                 always {
+                    // allowEmptyResults: a test-compilation failure produces no XML,
+                    // and the publisher's own error would otherwise bury the real cause.
                     junit testResults: 'target/surefire-reports/*.xml',
+                          allowEmptyResults: true,
                           skipPublishingChecks: true
                     jacoco execPattern: 'target/jacoco.exec',
                            classPattern: 'target/classes',
@@ -146,8 +149,10 @@ pipeline {
 
     post {
         always {
-            // Keep the agent's disk from filling up with per-build image tags.
-            sh "docker image rm -f ${IMAGE_REPO}:${IMAGE_TAG} || true"
+            // Disk hygiene on the agent. Deliberately a time-bounded prune rather than
+            // `docker image rm` of this build's tag: the running stack is pinned to that
+            // tag, so removing it would strand the deployment on a missing image.
+            sh 'docker image prune -f --filter "until=168h" || true'
         }
         success {
             emailext(
