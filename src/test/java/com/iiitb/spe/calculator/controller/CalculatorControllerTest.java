@@ -80,6 +80,48 @@ class CalculatorControllerTest {
     }
 
     @Test
+    @DisplayName("NaN operand is rejected with 400 rather than serialized as a JSON string")
+    void nonFiniteParameterReturnsBadRequest() throws Exception {
+        mockMvc.perform(get("/api/v1/add").param("a", "NaN").param("b", "1"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("Invalid parameter"))
+                .andExpect(jsonPath("$.message").value(
+                        org.hamcrest.Matchers.containsString("finite")));
+    }
+
+    @Test
+    @DisplayName("A result that overflows to Infinity is rejected with 400")
+    void overflowingResultReturnsBadRequest() throws Exception {
+        mockMvc.perform(get("/api/v1/divide").param("a", "1e308").param("b", "1e-308"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("Invalid parameter"))
+                .andExpect(jsonPath("$.message").value(
+                        org.hamcrest.Matchers.containsString("overflows")));
+    }
+
+    @Test
+    @DisplayName("An unknown path returns 404, not 500 via the catch-all handler")
+    void unknownPathReturnsNotFound() throws Exception {
+        mockMvc.perform(get("/api/v1/modulo").param("a", "7").param("b", "3"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.error").value("Not Found"));
+    }
+
+    @Test
+    @DisplayName("A wrong HTTP method returns 405, not 500 via the catch-all handler")
+    void wrongMethodReturnsMethodNotAllowed() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .post("/api/v1/add").param("a", "2").param("b", "3"))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(jsonPath("$.status").value(405))
+                .andExpect(jsonPath("$.error").value("Method Not Allowed"))
+                // RFC 9110 §15.5.6: a 405 must advertise what is allowed.
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .header().string("Allow", "GET"));
+    }
+
+    @Test
     @DisplayName("Actuator health probe reports UP for Compose health checks")
     void actuatorHealthReportsUp() throws Exception {
         mockMvc.perform(get("/actuator/health"))

@@ -1,6 +1,7 @@
 package com.iiitb.spe.calculator.service;
 
 import com.iiitb.spe.calculator.exception.DivisionByZeroException;
+import com.iiitb.spe.calculator.exception.NonFiniteValueException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -69,5 +70,40 @@ class CalculatorServiceTest {
     void rejectsZeroDividedByZero() {
         assertThatThrownBy(() -> service.divide(0, 0))
                 .isInstanceOf(DivisionByZeroException.class);
+    }
+
+    @ParameterizedTest(name = "add({0}, {1}) rejects a non-finite operand")
+    @CsvSource({
+            "NaN, 1",
+            "1, NaN",
+            "Infinity, 1",
+            "-Infinity, 1"
+    })
+    void rejectsNonFiniteOperands(double a, double b) {
+        assertThatThrownBy(() -> service.add(a, b))
+                .isInstanceOf(NonFiniteValueException.class)
+                .hasMessageContaining("must be a finite number");
+    }
+
+    @Test
+    @DisplayName("multiply rejects a result that overflows to Infinity")
+    void rejectsOverflowingResult() {
+        assertThatThrownBy(() -> service.multiply(1e308, 10))
+                .isInstanceOf(NonFiniteValueException.class)
+                .hasMessageContaining("overflows");
+    }
+
+    @Test
+    @DisplayName("divide rejects a result that overflows to Infinity")
+    void rejectsOverflowingQuotient() {
+        assertThatThrownBy(() -> service.divide(1e308, 1e-308))
+                .isInstanceOf(NonFiniteValueException.class)
+                .hasMessageContaining("overflows");
+    }
+
+    @Test
+    @DisplayName("results that merely underflow to zero are still valid")
+    void allowsUnderflowToZero() {
+        assertThat(service.divide(1e-308, 1e308)).isZero();
     }
 }

@@ -25,9 +25,9 @@ LABEL org.opencontainers.image.title="calculator-api" \
       org.opencontainers.image.source="https://github.com/jayeshpandit/calculator-devops" \
       org.opencontainers.image.licenses="MIT"
 
-# wget is used by the container HEALTHCHECK below
-RUN apk add --no-cache wget \
-    && addgroup -S -g 10001 appgroup \
+# BusyBox already provides the `wget -qO-` used by the HEALTHCHECK below, so the
+# runtime layer installs nothing extra; it only gains an unprivileged account.
+RUN addgroup -S -g 10001 appgroup \
     && adduser -S -u 10001 -G appgroup appuser
 
 WORKDIR /app
@@ -43,6 +43,6 @@ ENV JAVA_OPTS="-XX:MaxRAMPercentage=75 -XX:+UseSerialGC" \
 EXPOSE 8080
 
 HEALTHCHECK --interval=15s --timeout=3s --start-period=30s --retries=5 \
-    CMD wget -qO- http://127.0.0.1:8080/actuator/health | grep -q '"status":"UP"' || exit 1
+    CMD wget -qO- "http://127.0.0.1:${SERVER_PORT}/actuator/health" | grep -q '"status":"UP"' || exit 1
 
 ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar /app/app.jar"]

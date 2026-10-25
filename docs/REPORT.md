@@ -5,6 +5,8 @@ M.Tech (CSE), Term I, 2026-27 · Faculty: Prof. B. Thangaraju
 
 Repository: `https://github.com/jayeshpandit/calculator-devops`
 Docker Hub: `https://hub.docker.com/r/jayeshpandit/calculator-api`
+(Both names are reserved for this submission; the pipeline references them by
+`IMAGE_REPO`/`REGISTRY_CREDS` in the `Jenkinsfile`.)
 
 ---
 
@@ -24,34 +26,35 @@ deployment.
 ## 2. Pipeline architecture
 
 ```
- ┌──────────┐  git push  ┌──────────┐  webhook   ┌─────────────────────────────────────────┐
- │ Developer│ ─────────► │  GitHub  │ ─────────► │            Jenkins controller           │
- │  laptop  │            │   repo   │            │                                         │
- └──────────┘            └──────────┘            │  1 Checkout    git rev-parse HEAD       │
-                                                 │  2 Build       mvn clean package        │
-                                                 │  3 Test        mvn test → JUnit+JaCoCo  │
-                                                 │  4 DockerBuild image:${BUILD_NUMBER}    │
-                                                 │  5 Push        → Docker Hub (creds)     │
-                                                 │  6 Deploy      docker compose up -d     │
-                                                 │  7 Verify      /actuator/health + smoke │
-                                                 └───┬──────────────────┬──────────────┬───┘
-                                        docker push  │       compose up │              │ emailext
-                                                     ▼                  ▼              ▼
-                                            ┌──────────────┐   ┌─────────────────┐  ┌───────┐
-                                            │  Docker Hub  │   │ calculator-net  │  │ SMTP  │
-                                            │ calculator-  │   │ ┌─────┐ ┌─────┐ │  │ inbox │
-                                            │  api:<n>     │   │ │nginx│→│api×2│ │  └───────┘
-                                            └──────┬───────┘   │ │ :80 │ │:8080│ │
-                                                   │           │ └─────┘ └─────┘ │
-                                                   └──pull────►└────────┬────────┘
-                                                                        │
-                                                            host :8080 ─┘
+  +-----------+ git push  +----------+  webhook  +--------------------------------------+
+  | Developer |---------->|  GitHub  |---------->|          Jenkins controller          |
+  |  laptop   |           |   repo   |           |                                      |
+  +-----------+           +----------+           | 1 Checkout     git rev-parse HEAD    |
+                                                 | 2 Build        mvn clean package     |
+                                                 | 3 Test         mvn test -> JUnit+Cov |
+                                                 | 4 DockerBuild  image:${BUILD_NUMBER} |
+                                                 | 5 Push         -> Docker Hub (creds) |
+                                                 | 6 Deploy       docker compose up -d  |
+                                                 | 7 Verify       /actuator/health+smoke|
+                                                 +--+---------------+----------------+--+
+                                     docker push    |    compose up |                | emailext
+                                                    v               v                v
+                                           +--------------+  +-----------------+  +-------+
+                                           |  Docker Hub  |  | calculator-net  |  | SMTP  |
+                                           | calculator-  |  | +-----+ +-----+ |  | inbox |
+                                           |   api:<n>    |  | |nginx|>|api x2| |  +-------+
+                                           +------+-------+  | | :80 | |:8080| |
+                                                  |          | +-----+ +-----+ |
+                                                  +--pull--->+--------+--------+
+                                                                      |
+                                                          host :8080 -+
 ```
 
 **Runtime topology.** Two API replicas join a user-defined bridge network and publish no host
-ports; all traffic enters through an Nginx reverse proxy on host port 8080. Docker's embedded
-DNS resolves the service name to both replica IPs, so Nginx round-robins between them and
-retries the sibling on `502/503/504`. Each replica carries a health check that greps
+ports; all traffic enters through an Nginx reverse proxy on host port 8080. The proxy resolves
+the service name against Docker's embedded DNS on every request (see challenge 7), so it both
+round-robins across the replicas and follows them across a redeploy, retrying the sibling on
+`502/503/504`. Each replica carries a health check that greps
 `"status":"UP"` out of `/actuator/health`, and the proxy only starts once the API reports
 `service_healthy`.
 
@@ -60,13 +63,13 @@ retries the sibling on `502/503/504`. Each replica carries a health check that g
 | # | Stage | Implementation | Why it matters |
 |---|---|---|---|
 | 1 | **Checkout** | `checkout scm`; captures short SHA and commit subject into the build environment | Every artefact and notification is traceable to one commit |
-| 2 | **Build** | `mvn -B clean package -DskipTests`; archives `target/calculator.jar` with fingerprinting | Fails fast on compilation errors before the slower test stage |
-| 3 | **Test** | `mvn -B test`; `post{always}` publishes `target/surefire-reports/*.xml` via the `junit` step and `jacoco.exec` via the JaCoCo plugin | A red test fails the build; reports are published even for failed builds |
+| 2 | **Build** | `./mvnw -B clean package -DskipTests`; archives `target/calculator.jar` with fingerprinting | Fails fast on compilation errors before the slower test stage |
+| 3 | **Test** | `./mvnw -B test`; `post{always}` publishes `target/surefire-reports/*.xml` via the `junit` step and `jacoco.exec` via the JaCoCo plugin | A red test fails the build; reports are published even for failed builds |
 | 4 | **Docker Build** | `docker.build("${IMAGE_REPO}:${BUILD_NUMBER}", '--pull .')`, also tagged `latest` | Immutable, build-number-addressable images; `--pull` keeps base images fresh |
 | 5 | **Push** | `docker.withRegistry(..., 'dockerhub-credentials')` pushes both tags | Credentials come from the Jenkins store — never from the repository |
 | 6 | **Deploy** | `docker compose pull` then `docker compose up -d --remove-orphans` | Compose reconciles the running stack in place, which is what makes re-runs idempotent |
-| 7 | **Verify Health** | polls `/actuator/health` up to 30× / 5 s, then smoke-tests `add`, `multiply`, and asserts the divide-by-zero path returns **400** | Deployment is only "green" if the new containers actually serve traffic correctly |
-| — | **post** | removes the per-build image tag; `emailext` sends HTML mail on success / failure (log attached) / unstable | Disk hygiene on the agent plus immediate feedback to the developer |
+| 7 | **Verify Health** | polls `/actuator/health` up to 30× / 5 s, then asserts `add`/`multiply` and every error path through the proxy: four 400s, a 404 and a 405 | Deployment is only "green" if the new containers actually serve traffic correctly |
+| — | **post** | prunes dangling images older than a week, deliberately leaving the deployed tag alone; `emailext` sends HTML mail on success / failure (log attached) / unstable | Disk hygiene without stranding the running stack on a missing image |
 
 `options` adds `timestamps()`, a 30-minute timeout, log rotation (15 builds), and
 `disableConcurrentBuilds()` — the last matters because every build deploys to the same host,
@@ -84,15 +87,21 @@ record (`{"operation","a","b","result"}`). Every failure mode is funnelled throu
 | `b = 0` on divide | 400 | `Division by zero` |
 | missing `a` or `b` | 400 | `Missing parameter` |
 | non-numeric parameter | 400 | `Invalid parameter` |
+| `NaN`/`Infinity` operand, or a result that overflows | 400 | `Invalid parameter` |
+| unknown path | 404 | `Not Found` |
+| wrong HTTP method | 405 | `Method Not Allowed` |
 | anything unexpected | 500 | `Internal Server Error` |
 
 This matters for the pipeline, not just for tidiness: the Verify stage asserts that
-`divide?a=1&b=0` answers 400, so a regression that lets `b=0` return `Infinity` (the Java
-default for double division) breaks the deployment gate rather than reaching users.
+`divide?a=1&b=0` answers 400 — and likewise that an unknown path is 404 and a wrong method
+405 — so a regression that lets `b=0` return `Infinity` (the Java default for double division),
+or that collapses routing errors into 500s, breaks the deployment gate rather than reaching
+users.
 
-Tests: **24 total, all passing.** Parameterized JUnit 5 cases cover all four operations plus
-the `x/0` and `0/0` rejections; a `@SpringBootTest` + `MockMvc` suite drives every real
-endpoint, all three 400 paths, and the Actuator probe; a context test asserts the wiring.
+Tests: **35 total, all passing.** Parameterized JUnit 5 cases cover all four operations plus
+the `x/0` and `0/0` rejections and the non-finite guards; a `@SpringBootTest` + `MockMvc`
+suite drives every real endpoint, every 4xx path including 404 and 405, and the Actuator
+probe; a context test asserts the wiring.
 
 ## 5. Container and image design
 
@@ -115,7 +124,11 @@ Compose memory limit instead of sizing itself against the host.
 with `--no-ff`, so the graph permanently records each merge:
 
 `feature/calculator-api` → `feature/unit-tests` → `feature/docker` →
-`feature/compose-deployment` → `feature/jenkins-pipeline` → `docs/report`
+`feature/compose-deployment` → `feature/jenkins-pipeline` → `docs/report` →
+`fix/pre-demo-hardening`
+
+The last branch holds the end-to-end testing pass that produced challenges 7-9: seven
+feature branches and seven `--no-ff` merges in total.
 
 Commits are small and progressive across the work window rather than a single drop. The
 `.gitignore` excludes `target/`, IDE directories, logs and every secret-shaped path
@@ -156,6 +169,30 @@ the cgroup limit.
 permission error until the `jenkins` user was added to the `docker` group and the service
 restarted.
 
+**7 — The proxy cached dead replica IPs.** The first `nginx.conf` used an `upstream` block
+naming `calculator:8080`. Open-source Nginx resolves an upstream host *once*, at config load.
+Round-robin worked, so the bug was invisible — but on the next deploy the replicas were
+recreated with new IPs while Compose correctly left the unchanged `proxy` alone, so Nginx kept
+dialling the old addresses and served 502s until restarted by hand. Because every peer was
+stale, `proxy_next_upstream` could not rescue it, and `Verify Health` would have failed the
+first build that actually changed the image. The fix is to point `proxy_pass` at a variable
+(`set $backend "http://calculator:8080"`) and declare `resolver 127.0.0.11 valid=10s`, which
+forces re-resolution against Docker's embedded DNS per request instead of at startup.
+
+**8 — A catch-all handler that turned 404 into 500.** `@ExceptionHandler(Exception.class)` on
+a `@RestControllerAdvice` is consulted *before* Spring's `DefaultHandlerExceptionResolver`, so
+it also swallowed the framework's own `NoResourceFoundException` and
+`HttpRequestMethodNotSupportedException`: an unknown path answered 500 instead of 404, a wrong
+method 500 instead of 405, and each one logged a full stack trace at ERROR. Both are now
+handled explicitly, with integration tests pinning the status codes.
+
+**9 — `Infinity` leaking through the JSON contract.** Rejecting `b = 0` was not enough:
+`1e308 / 1e-308` still overflowed, and Jackson cannot encode a non-finite `double` as a JSON
+number, so it silently emitted `"result":"Infinity"` — a *string* where every client expects a
+number. Operands and results are now both checked with `Double.isFinite` and rejected as 400,
+which is also what makes the "validate numeric inputs" requirement genuinely met rather than
+only true for the divide-by-zero case.
+
 ## 8. Outcome
 
 A single `git push` now produces: a compiled and tested artefact, a published Docker Hub image
@@ -164,6 +201,14 @@ and smoke-test gate, and an email with the result. The project also forms the ba
 end-of-semester Capstone, which will extend it with Ansible, Kubernetes and
 Prometheus/Grafana.
 
-**Verification evidence** (see `docs/screenshots/`): a green Jenkins run with all seven stages,
-the build-status email, `docker ps` showing both replicas and the proxy as `healthy`, and
-sample API responses including the 400 error bodies.
+**Verified locally.** `./mvnw clean test` → 35 tests, 0 failures. `docker build` → a ~230 MB
+runtime image running as uid 10001. `docker compose up -d` → two API replicas and the proxy
+all `(healthy)`, with Nginx observed splitting requests across both replicas, and a second
+`up -d` confirmed to be a no-op. `./scripts/smoke-test.sh` → 12/12 checks pass against the live
+stack, covering every 400 path plus the 404 and 405 cases.
+
+**Evidence to be attached** (`docs/screenshots/`, checklist in that directory): a green
+Jenkins run with all seven stages, the build-status email, `docker ps` showing both replicas
+and the proxy as `healthy`, the Docker Hub tag list, and the GitHub webhook delivery. These
+depend on the Jenkins instance and the GitHub remote, and are captured as part of preparing
+the Class 17 demo.

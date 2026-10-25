@@ -1,8 +1,10 @@
 // Declarative CI/CD pipeline for the Calculator REST API.
 //
 // Prerequisites on the Jenkins controller/agent:
-//   * Tools        : Maven named "Maven3", JDK named "JDK21" (Manage Jenkins > Tools)
-//   * Plugins      : Pipeline, Git, JUnit, JaCoCo, Docker Pipeline, Email Extension
+//   * Tools        : JDK named "JDK21" (Manage Jenkins > Tools). Maven comes from the
+//                    repo's ./mvnw wrapper, so no Jenkins Maven install is needed.
+//   * Plugins      : Pipeline, Git, GitHub, JUnit, JaCoCo, Docker Pipeline,
+//                    Email Extension, Timestamper
 //   * Credentials  : Username/Password credential with ID "dockerhub-credentials"
 //   * Trigger      : GitHub webhook -> http://<jenkins>/github-webhook/
 //                    (Poll SCM fallback is configured below)
@@ -11,8 +13,7 @@ pipeline {
     agent any
 
     tools {
-        maven 'Maven3'
-        jdk   'JDK21'
+        jdk 'JDK21'
     }
 
     environment {
@@ -20,7 +21,6 @@ pipeline {
         IMAGE_NAME      = 'calculator-api'
         IMAGE_REPO      = "${DOCKER_HUB_USER}/${IMAGE_NAME}"
         IMAGE_TAG       = "${env.BUILD_NUMBER}"
-        DOCKER_IMAGE    = "${IMAGE_REPO}:${IMAGE_TAG}"
         REGISTRY_CREDS  = 'dockerhub-credentials'
         NOTIFY_EMAIL    = 'iiitbachelors@gmail.com'
         PROXY_PORT      = '8080'
@@ -54,7 +54,7 @@ pipeline {
 
         stage('Build') {
             steps {
-                sh 'mvn -B clean package -DskipTests'
+                sh './mvnw -B clean package -DskipTests'
             }
             post {
                 success {
@@ -68,11 +68,14 @@ pipeline {
                 // A test failure fails this stage (and the build) straight away;
                 // the publishers in post{always} still run, so the JUnit report
                 // and coverage are available for the failed build too.
-                sh 'mvn -B test'
+                sh './mvnw -B test'
             }
             post {
                 always {
+                    // allowEmptyResults: a test-compilation failure produces no XML,
+                    // and the publisher's own error would otherwise bury the real cause.
                     junit testResults: 'target/surefire-reports/*.xml',
+                          allowEmptyResults: true,
                           skipPublishingChecks: true
                     jacoco execPattern: 'target/jacoco.exec',
                            classPattern: 'target/classes',
@@ -127,10 +130,19 @@ pipeline {
                             echo "Health check passed on attempt ${attempt}"
                             curl -fsS "http://localhost:${PROXY_PORT}/api/v1/add?a=2&b=3"; echo
                             curl -fsS "http://localhost:${PROXY_PORT}/api/v1/multiply?a=6&b=7"; echo
-                            # divide-by-zero must answer 400, not 500
-                            code=$(curl -s -o /dev/null -w '%{http_code}' \
-                                   "http://localhost:${PROXY_PORT}/api/v1/divide?a=1&b=0")
-                            test "$code" = "400" || { echo "expected 400, got $code"; exit 1; }
+                            # Error paths must keep their status codes through the proxy;
+                            # a 500 here would mean the catch-all handler has regressed.
+                            assert_status() {
+                                got=$(curl -s -X "${3:-GET}" -o /dev/null -w '%{http_code}' "$1")
+                                test "$got" = "$2" || { echo "$1 -> expected $2, got $got"; exit 1; }
+                            }
+                            base="http://localhost:${PROXY_PORT}/api/v1"
+                            assert_status "$base/divide?a=1&b=0"          400
+                            assert_status "$base/add?a=NaN&b=1"           400
+                            assert_status "$base/divide?a=1e308&b=1e-308" 400
+                            assert_status "$base/add?a=2"                 400
+                            assert_status "$base/modulo?a=7&b=3"          404
+                            assert_status "$base/add?a=2&b=3"             405 POST
                             echo "Smoke tests passed."
                             exit 0
                         fi
@@ -146,8 +158,10 @@ pipeline {
 
     post {
         always {
-            // Keep the agent's disk from filling up with per-build image tags.
-            sh "docker image rm -f ${IMAGE_REPO}:${IMAGE_TAG} || true"
+            // Disk hygiene on the agent. Deliberately a time-bounded prune rather than
+            // `docker image rm` of this build's tag: the running stack is pinned to that
+            // tag, so removing it would strand the deployment on a missing image.
+            sh 'docker image prune -f --filter "until=168h" || true'
         }
         success {
             emailext(

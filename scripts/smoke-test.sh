@@ -20,10 +20,9 @@ check_json() {
 }
 
 check_status() {
-    local label="$1" url="$2" expected="$3"
-    local code body
-    body=$(curl -s -o /tmp/smoke-body -w '%{http_code}' "$url")
-    code="$body"
+    local label="$1" url="$2" expected="$3" method="${4:-GET}"
+    local code
+    code=$(curl -s -X "$method" -o /tmp/smoke-body -w '%{http_code}' "$url")
     if [ "$code" = "$expected" ]; then
         printf '  PASS  %-28s HTTP %s %s\n' "$label" "$code" "$(cat /tmp/smoke-body)"
     else
@@ -47,6 +46,12 @@ echo "Error handling (expect HTTP 400):"
 check_status "divide by zero"      "${BASE}/api/v1/divide?a=10&b=0"         400
 check_status "missing parameter"   "${BASE}/api/v1/add?a=2"                 400
 check_status "non-numeric input"   "${BASE}/api/v1/multiply?a=abc&b=2"      400
+check_status "non-finite operand"  "${BASE}/api/v1/add?a=NaN&b=1"           400
+check_status "overflowing result"  "${BASE}/api/v1/divide?a=1e308&b=1e-308" 400
+
+echo "Routing (expect 404 / 405, not a catch-all 500):"
+check_status "unknown endpoint"    "${BASE}/api/v1/modulo?a=7&b=3"          404
+check_status "wrong HTTP method"   "${BASE}/api/v1/add?a=2&b=3"             405 POST
 
 echo
 if [ "$failures" -eq 0 ]; then
