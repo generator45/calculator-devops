@@ -13,22 +13,22 @@ manual steps.
 ## 1. Architecture
 
 ```
-  developer                GitHub                    Jenkins (declarative pipeline)
- ┌──────────┐   git push  ┌────────┐   webhook      ┌──────────────────────────────────────┐
- │  laptop  │ ──────────► │  repo  │ ─────────────► │ Checkout → Build → Test → Docker     │
- └──────────┘             └────────┘                │ Build → Push → Deploy → Verify       │
-                                                    └───────┬───────────────────┬──────────┘
-                                                            │ docker push       │ docker compose up -d
-                                                            ▼                   ▼
-                                                   ┌──────────────┐   ┌──────────────────────────┐
-                                                   │  Docker Hub  │   │   calculator-net (bridge)│
-                                                   │ calculator-  │   │  ┌────────┐  ┌─────────┐ │
-                                                   │   api:<n>    │   │  │ nginx  │─►│ api x2  │ │
-                                                   └──────────────┘   │  │  :80   │  │ :8080   │ │
-                                                        │             │  └────────┘  └─────────┘ │
-                                                        └────pull────►└──────────────────────────┘
-                                                                                 │
-                                                                      host :8080 ─┘
+  developer                GitHub                   Jenkins (declarative pipeline)
+ +----------+   git push  +--------+   webhook     +--------------------------------------+
+ |  laptop  |------------>|  repo  |-------------->| Checkout -> Build -> Test -> Docker   |
+ +----------+             +--------+               | Build -> Push -> Deploy -> Verify     |
+                                                   +-------+------------------+------------+
+                                                           | docker push      | docker compose up -d
+                                                           v                  v
+                                                  +--------------+  +---------------------------+
+                                                  |  Docker Hub  |  | calculator-net (bridge)   |
+                                                  | calculator-  |  |  +--------+   +---------+ |
+                                                  |   api:<n>    |  |  | nginx  |-->| api x2  | |
+                                                  +--------------+  |  |  :80   |   |  :8080  | |
+                                                       |            |  +--------+   +---------+ |
+                                                       +---pull---->+-------------+-------------+
+                                                                                  |
+                                                                      host :8080 -+
 ```
 
 Email notification of build status is sent on success, failure and unstable.
@@ -71,22 +71,36 @@ $ curl -s "http://localhost:8080/api/v1/add?a=2"
 $ curl -s "http://localhost:8080/api/v1/multiply?a=abc&b=2"
 {"timestamp":"...","status":400,"error":"Invalid parameter",
  "message":"Parameter 'a' must be a valid number but was 'abc'","path":"/api/v1/multiply"}
+
+# non-finite operand, and a result that overflows a double
+$ curl -s "http://localhost:8080/api/v1/add?a=NaN&b=1"
+{"timestamp":"...","status":400,"error":"Invalid parameter",
+ "message":"Parameter 'a' must be a finite number but was 'NaN'","path":"/api/v1/add"}
+$ curl -s "http://localhost:8080/api/v1/divide?a=1e308&b=1e-308"
+{"timestamp":"...","status":400,"error":"Invalid parameter",
+ "message":"divide(1.0E308, 1.0E-308) overflows the range of a finite double", ...}
 ```
+
+An unknown path returns **404** and a wrong HTTP method **405**, both in the same error shape
+rather than being swallowed into a 500 by the catch-all handler.
 
 ## 3. Build, test and run
 
 ### Prerequisites
 
-Java 21 (JDK), Maven 3.9+, Docker 24+ with the Compose v2 plugin.
+Java 21 (JDK) and Docker 24+ with the Compose v2 plugin. Maven is optional — the repo ships
+the Maven wrapper (`./mvnw`), so no local Maven install is required.
 
 ### Local (Maven)
 
 ```bash
-mvn clean package          # compile + test + build target/calculator.jar
-mvn test                   # tests only; JUnit XML -> target/surefire-reports/
-mvn spring-boot:run        # run on http://localhost:8080
+./mvnw clean package        # compile + test + build target/calculator.jar
+./mvnw test                 # tests only; JUnit XML -> target/surefire-reports/
+./mvnw spring-boot:run      # run on http://localhost:8080
 java -jar target/calculator.jar
 ```
+
+Substitute `mvn` for `./mvnw` if you prefer a local Maven 3.9+ install.
 
 Coverage (JaCoCo) is written to `target/site/jacoco/index.html`.
 
@@ -122,7 +136,9 @@ IMAGE_TAG=latest docker compose up -d
 | Spring MVC integration (MockMvc) | `src/test/java/.../controller/CalculatorControllerTest.java` | every endpoint, 400 paths, actuator health |
 | Context | `src/test/java/.../CalculatorApplicationTests.java` | application context wiring |
 
-24 tests, all green. Surefire emits JUnit XML that the Jenkins `junit` publisher consumes;
+| Error handling | same MockMvc suite | 400 (divide-by-zero, missing, non-numeric, non-finite, overflow), 404, 405 |
+
+35 tests, all green. Surefire emits JUnit XML that the Jenkins `junit` publisher consumes;
 a failing test fails the pipeline.
 
 ## 5. Docker image
@@ -154,7 +170,11 @@ number, plus `latest`).
   only once the API is `service_healthy`, with its own `/health` endpoint and health check.
 - **`calculator-net`** — a user-defined bridge network joining the two services.
 
-Nginx round-robins across the replicas and retries the other instance on `502/503/504`.
+Nginx reaches the replicas through a variable `proxy_pass` plus
+`resolver 127.0.0.11 valid=10s`, so the service name is re-resolved against Docker's embedded
+DNS per request. That both round-robins across the replicas and keeps working after a redeploy
+gives them new IPs — an `upstream` block would have resolved the name once at startup and then
+served 502s until the proxy was restarted by hand.
 
 ## 7. CI/CD pipeline (Jenkins)
 
@@ -176,7 +196,8 @@ log attached / unstable) to the student's address.
 
 ### Jenkins setup
 
-1. **Plugins** — Pipeline, Git, GitHub, JUnit, JaCoCo, Docker Pipeline, Email Extension.
+1. **Plugins** — Pipeline, Git, GitHub, JUnit, JaCoCo, Docker Pipeline, Email Extension,
+   Timestamper (required by `options { timestamps() }`).
 2. **Tools** (*Manage Jenkins → Tools*) — Maven installation named `Maven3`, JDK named `JDK21`.
 3. **Credentials** (*Manage Jenkins → Credentials*) — Username/Password credential with ID
    `dockerhub-credentials` holding a Docker Hub access token. Nothing is hard-coded; no
@@ -202,12 +223,14 @@ calculator-devops/
 ├── src/main/resources/application.yml
 ├── src/test/java/com/iiitb/spe/calculator/...   # JUnit 5 + MockMvc
 ├── pom.xml                                      # Maven build, Surefire, JaCoCo
+├── mvnw, mvnw.cmd, .mvn/                        # Maven wrapper - no local Maven needed
 ├── Dockerfile                                   # multi-stage, non-root
 ├── .dockerignore
 ├── docker-compose.yml                           # 2 API replicas + Nginx
 ├── nginx/nginx.conf
 ├── Jenkinsfile                                  # declarative CI/CD pipeline
-├── docs/REPORT.md                               # 2-3 page report (source of the PDF)
+├── scripts/smoke-test.sh                        # mirrors the pipeline's health gate
+├── docs/REPORT.md, docs/REPORT.pdf              # 2-3 page report
 ├── docs/screenshots/                            # pipeline, email, docker ps, API output
 ├── .gitignore
 └── README.md
@@ -235,8 +258,8 @@ Branches used: `feature/calculator-api`, `feature/unit-tests`, `feature/docker`,
 |---|---|
 | Source, `Jenkinsfile`, `Dockerfile`, `docker-compose.yml` | this repository |
 | Docker Hub image | `https://hub.docker.com/r/jayeshpandit/calculator-api` |
-| Report (architecture, stages, challenges) | [`docs/REPORT.md`](docs/REPORT.md) → `docs/REPORT.pdf` |
-| Screenshots (green pipeline, email, `docker ps`, API responses) | [`docs/screenshots/`](docs/screenshots/) |
+| Report (architecture, stages, challenges) | [`docs/REPORT.md`](docs/REPORT.md), exported to [`docs/REPORT.pdf`](docs/REPORT.pdf) |
+| Screenshots (green pipeline, email, `docker ps`, API responses) | [`docs/screenshots/`](docs/screenshots/) — checklist in that directory; captured while preparing the demo |
 | Live demo | push a change → webhook → pipeline → redeploy |
 
 ## 11. Scope
