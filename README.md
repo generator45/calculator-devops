@@ -252,7 +252,8 @@ git merge --no-ff feature/<topic>
 ```
 
 Branches used: `feature/calculator-api`, `feature/unit-tests`, `feature/docker`,
-`feature/compose-deployment`, `feature/jenkins-pipeline`, `docs/report`.
+`feature/compose-deployment`, `feature/jenkins-pipeline`, `docs/report`, and
+`fix/pre-demo-hardening` for the end-to-end testing pass that closed out the project.
 `git log --graph --oneline` shows the progressive history across the work window.
 
 ## 10. Deliverables

@@ -124,7 +124,11 @@ Compose memory limit instead of sizing itself against the host.
 with `--no-ff`, so the graph permanently records each merge:
 
 `feature/calculator-api` → `feature/unit-tests` → `feature/docker` →
-`feature/compose-deployment` → `feature/jenkins-pipeline` → `docs/report`
+`feature/compose-deployment` → `feature/jenkins-pipeline` → `docs/report` →
+`fix/pre-demo-hardening`
+
+The last branch holds the end-to-end testing pass that produced challenges 7-9: seven
+feature branches and seven `--no-ff` merges in total.
 
 Commits are small and progressive across the work window rather than a single drop. The
 `.gitignore` excludes `target/`, IDE directories, logs and every secret-shaped path
